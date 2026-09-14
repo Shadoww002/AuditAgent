@@ -1,0 +1,12 @@
+langgraph
+langchain
+langchain-core
+langchain-community
+langchain-openai
+pydantic>=2.0
+fastapi
+uvicorn
+chromadb
+typer
+python-dotenv
+pip-audit
