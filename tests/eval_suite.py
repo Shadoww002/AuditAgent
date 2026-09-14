@@ -1,6 +1,9 @@
 import os
 import sys
 import pprint
+from dotenv import load_dotenv
+
+load_dotenv() # Load variables from .env file
 
 # Ensure auditagent is in path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))

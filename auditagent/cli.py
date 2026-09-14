@@ -1,8 +1,11 @@
 import typer
 from rich.console import Console
 from rich.markdown import Markdown
+from dotenv import load_dotenv
 from auditagent.graph import build_graph
 from auditagent.utils.repo import clone_repo
+
+load_dotenv() # Load environment variables
 
 app = typer.Typer()
 console = Console()

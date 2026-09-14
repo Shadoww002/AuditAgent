@@ -1,7 +1,7 @@
 import os
 from typing import Dict, Any
 from langchain_core.messages import SystemMessage, HumanMessage
-from langchain_openai import ChatOpenAI
+from langchain_groq import ChatGroq
 from pydantic import BaseModel, Field
 
 from auditagent.state import AuditState, Finding, VerifiedFinding
@@ -15,12 +15,14 @@ def critic_agent_node(state: dict) -> Dict[str, Any]:
     """
     Verifies each finding by examining the actual code and context.
     """
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0) # Use a fast model for verification
     verified_findings = list(state.get("verified_findings", []))
-    
-    # We use LangChain's structured output for strict typing
-    structured_llm = llm.with_structured_output(CriticDecision)
-    
+    api_key = os.environ.get("GROQ_API_KEY")
+    if api_key and api_key != "your_groq_api_key_here":
+        llm = ChatGroq(model="openai/gpt-oss-20b", temperature=0) # Using GPT OSS on Groq
+        structured_llm = llm.with_structured_output(CriticDecision)
+    else:
+        structured_llm = None
+        
     system_prompt = (
         "You are a senior security auditor. Your job is to verify a security finding.\n"
         "You will be given the finding details, the actual code snippet, and context about the vulnerability.\n"
@@ -45,16 +47,22 @@ def critic_agent_node(state: dict) -> Dict[str, Any]:
         )
         
         try:
-            decision = structured_llm.invoke([
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=prompt)
-            ])
-            
+            if structured_llm:
+                decision = structured_llm.invoke([
+                    SystemMessage(content=system_prompt),
+                    HumanMessage(content=prompt)
+                ])
+                status = decision.status
+                justification = decision.justification
+            else:
+                status = "needs_manual_review"
+                justification = "LLM verification bypassed because GROQ_API_KEY is not set in the environment."
+                
             verified_findings.append(
                 VerifiedFinding(
                     original_finding=finding,
-                    status=decision.status,
-                    justification=decision.justification,
+                    status=status,
+                    justification=justification,
                     citations=[context.split('\n')[0]] # First line of context as citation
                 )
             )

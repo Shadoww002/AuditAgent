@@ -30,7 +30,7 @@ def writer_agent_node(state: dict) -> Dict[str, Any]:
             report_lines.append("\n---\n")
             
     if verified_count == 0:
-        report_lines.append("No verified vulnerabilities found! 🎉")
+        report_lines.append("No verified vulnerabilities found!")
         
     report_lines.append("## Needs Manual Review")
     report_lines.append("The following items could not be automatically verified by the Critic agent:\n")

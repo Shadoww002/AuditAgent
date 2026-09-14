@@ -3,6 +3,7 @@ langchain
 langchain-core
 langchain-community
 langchain-openai
+langchain-groq
 pydantic>=2.0
 fastapi
 uvicorn

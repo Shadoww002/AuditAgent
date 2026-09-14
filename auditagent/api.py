@@ -2,6 +2,9 @@ from fastapi import FastAPI, BackgroundTasks
 from pydantic import BaseModel
 import uuid
 from typing import Dict
+from dotenv import load_dotenv
+
+load_dotenv() # Load environment variables
 
 from auditagent.graph import build_graph
 from auditagent.utils.repo import clone_repo
