@@ -19,3 +19,5 @@ qdrant-client
 langchain-qdrant
 langchain-huggingface
 sentence-transformers
+tenacity
+requests

@@ -1,5 +1,6 @@
 import os
 import datetime
+import requests
 from redis import Redis
 from rq import Worker, Queue, Connection
 from dotenv import load_dotenv
@@ -7,7 +8,7 @@ from dotenv import load_dotenv
 from auditagent.db import SessionLocal
 from auditagent.models import ScanJob
 from auditagent.graph import build_graph
-from auditagent.utils.repo import clone_repo
+from auditagent.utils.repo import clone_repo, cleanup_repo
 
 load_dotenv()
 
@@ -31,7 +32,10 @@ def execute_scan_job(job_id: str, repo_url: str):
         job.status = "cloning"
         db.commit()
         
-        if repo_url.startswith("http://") or repo_url.startswith("https://") or repo_url.startswith("git@"):
+        repo_path = None
+        is_remote = repo_url.startswith("http://") or repo_url.startswith("https://") or repo_url.startswith("git@")
+        
+        if is_remote:
             repo_path = clone_repo(repo_url)
         else:
             repo_path = repo_url
@@ -62,7 +66,22 @@ def execute_scan_job(job_id: str, repo_url: str):
         job.completed_at = datetime.datetime.utcnow()
         db.commit()
     finally:
+        if job and job.webhook_url:
+            try:
+                payload = {
+                    "job_id": job.id,
+                    "status": job.status,
+                    "report": job.report_text,
+                    "error": job.error_message
+                }
+                requests.post(job.webhook_url, json=payload, timeout=10)
+            except Exception as e:
+                print(f"Webhook delivery failed: {e}")
         db.close()
+        
+        # Security Hardening: Cleanup sandbox
+        if repo_path and is_remote:
+            cleanup_repo(repo_path)
 
 if __name__ == '__main__':
     with Connection(redis_conn):

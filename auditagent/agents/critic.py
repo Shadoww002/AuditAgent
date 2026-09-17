@@ -3,6 +3,7 @@ from typing import Dict, Any
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_groq import ChatGroq
 from pydantic import BaseModel, Field
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from auditagent.state import AuditState, Finding, VerifiedFinding
 from auditagent.tools.retrieval import retriever
@@ -48,10 +49,14 @@ def critic_agent_node(state: dict) -> Dict[str, Any]:
         
         try:
             if structured_llm:
-                decision = structured_llm.invoke([
-                    SystemMessage(content=system_prompt),
-                    HumanMessage(content=prompt)
-                ])
+                @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+                def _call_llm():
+                    return structured_llm.invoke([
+                        SystemMessage(content=system_prompt),
+                        HumanMessage(content=prompt)
+                    ])
+                
+                decision = _call_llm()
                 status = decision.status
                 justification = decision.justification
             else:

@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException
 from pydantic import BaseModel
-from typing import Dict
+from typing import Dict, Optional
 import uuid
 import os
 from redis import Redis
@@ -27,13 +27,14 @@ q = Queue('audit_queue', connection=redis_conn)
 
 class ScanRequest(BaseModel):
     repo_url: str
+    webhook_url: Optional[str] = None
 
 @app.post("/api/v1/scan")
 def trigger_scan(request: ScanRequest, db: Session = Depends(get_db)):
     job_id = str(uuid.uuid4())
     
     # Create job in database
-    new_job = ScanJob(id=job_id, repo_url=request.repo_url, status="pending")
+    new_job = ScanJob(id=job_id, repo_url=request.repo_url, webhook_url=request.webhook_url, status="pending")
     db.add(new_job)
     db.commit()
     
