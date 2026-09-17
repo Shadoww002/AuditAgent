@@ -1,62 +1,59 @@
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI, Depends, HTTPException
 from pydantic import BaseModel
-import uuid
 from typing import Dict
+import uuid
+import os
+from redis import Redis
+from rq import Queue
+from sqlalchemy.orm import Session
 from dotenv import load_dotenv
 
 load_dotenv() # Load environment variables
 
-from auditagent.graph import build_graph
-from auditagent.utils.repo import clone_repo
+from auditagent.db import SessionLocal, engine, get_db
+from auditagent.models import Base, ScanJob
+from auditagent.worker import execute_scan_job
+
+# Create tables if they don't exist
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="AuditAgent API")
 
-# In-memory store for Stage 1 (Stage 3 uses Postgres)
-jobs: Dict[str, dict] = {}
+redis_conn = Redis(
+    host=os.getenv('REDIS_HOST', 'localhost'),
+    port=int(os.getenv('REDIS_PORT', 6379))
+)
+q = Queue('audit_queue', connection=redis_conn)
 
 class ScanRequest(BaseModel):
     repo_url: str
 
-def run_scan_job(job_id: str, repo_url: str):
-    """Background task to run the LangGraph scan."""
-    try:
-        jobs[job_id]["status"] = "cloning"
-        if repo_url.startswith("http://") or repo_url.startswith("https://") or repo_url.startswith("git@"):
-            repo_path = clone_repo(repo_url)
-        else:
-            repo_path = repo_url
-            
-        jobs[job_id]["status"] = "running_agents"
-        workflow = build_graph()
-        initial_state = {
-            "repository_path": repo_path,
-            "metadata": {},
-            "findings": [],
-            "verified_findings": [],
-            "final_report": "",
-            "errors": []
-        }
-        
-        final_state = workflow.invoke(initial_state)
-        
-        jobs[job_id]["status"] = "completed"
-        jobs[job_id]["report"] = final_state.get("final_report", "")
-        
-    except Exception as e:
-        jobs[job_id]["status"] = "failed"
-        jobs[job_id]["error"] = str(e)
-
 @app.post("/api/v1/scan")
-def trigger_scan(request: ScanRequest, background_tasks: BackgroundTasks):
+def trigger_scan(request: ScanRequest, db: Session = Depends(get_db)):
     job_id = str(uuid.uuid4())
-    jobs[job_id] = {"status": "pending", "repo": request.repo_url}
     
-    background_tasks.add_task(run_scan_job, job_id, request.repo_url)
+    # Create job in database
+    new_job = ScanJob(id=job_id, repo_url=request.repo_url, status="pending")
+    db.add(new_job)
+    db.commit()
+    
+    # Enqueue task in Redis
+    q.enqueue(execute_scan_job, job_id, request.repo_url, job_timeout='1h')
     
     return {"job_id": job_id, "status": "pending"}
 
 @app.get("/api/v1/scan/{job_id}")
-def get_scan_status(job_id: str):
-    if job_id not in jobs:
-        return {"error": "Job not found"}, 404
-    return jobs[job_id]
+def get_scan_status(job_id: str, db: Session = Depends(get_db)):
+    job = db.query(ScanJob).filter(ScanJob.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+        
+    return {
+        "job_id": job.id,
+        "repo_url": job.repo_url,
+        "status": job.status,
+        "report": job.report_text,
+        "error": job.error_message,
+        "created_at": job.created_at,
+        "completed_at": job.completed_at
+    }

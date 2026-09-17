@@ -1,28 +1,43 @@
-class RetrievalLayer:
-    def __init__(self):
-        # In a real scenario, initialize ChromaDB client here
-        # self.client = chromadb.Client()
-        pass
-        
-    def retrieve_context(self, query: str) -> str:
-        """
-        Mocks retrieving context from a vector DB for CVEs or OWASP issues.
-        """
-        query_lower = query.lower()
-        if "secret" in query_lower or "password" in query_lower or "key" in query_lower:
-            return (
-                "CWE-798: Use of Hard-coded Credentials.\n"
-                "Hardcoding secrets in source code is dangerous because it exposes sensitive "
-                "authentication material to anyone with access to the repository, leading to "
-                "potential unauthorized access to external services or databases."
-            )
-        elif "cve" in query_lower or "vuln" in query_lower or "dependency" in query_lower:
-            return (
-                "OWASP A06:2021 – Vulnerable and Outdated Components.\n"
-                "Using known vulnerable dependencies allows attackers to exploit publicly "
-                "known flaws. It is crucial to patch these libraries to secure versions."
-            )
-        return "No specific context found. Analyze the code carefully for general security best practices."
+import os
+from langchain_chroma import Chroma
+from langchain_huggingface import HuggingFaceEmbeddings
 
-# Singleton instance for easy access
-retriever = RetrievalLayer()
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+CHROMA_PATH = os.path.join(BASE_DIR, "chroma_db")
+
+class RetrievalLayer:
+    """
+    RAG utility to fetch context on vulnerabilities.
+    """
+    def __init__(self):
+        try:
+            self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+            self.vectorstore = Chroma(
+                persist_directory=CHROMA_PATH, 
+                embedding_function=self.embeddings
+            )
+            self.retriever = self.vectorstore.as_retriever(search_kwargs={"k": 3})
+            self.has_db = True
+        except Exception as e:
+            print(f"Failed to initialize ChromaDB: {e}")
+            self.has_db = False
+
+    def query(self, query: str) -> str:
+        """
+        Query the Chroma vector database for security guidelines.
+        """
+        if not self.has_db:
+            return "Retrieval DB unavailable."
+            
+        try:
+            docs = self.retriever.invoke(query)
+            if not docs:
+                return "No relevant security context found."
+                
+            context = []
+            for i, doc in enumerate(docs):
+                context.append(f"[Source {i+1}]: {doc.page_content}")
+                
+            return "\n\n".join(context)
+        except Exception as e:
+            return f"Error during retrieval: {e}"

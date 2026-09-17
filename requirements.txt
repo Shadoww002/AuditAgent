@@ -11,3 +11,10 @@ chromadb
 typer
 python-dotenv
 pip-audit
+sqlalchemy
+rq
+redis
+chromadb
+langchain-chroma
+langchain-huggingface
+sentence-transformers
