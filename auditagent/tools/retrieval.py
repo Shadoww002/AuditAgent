@@ -1,9 +1,7 @@
 import os
-from langchain_chroma import Chroma
+from langchain_qdrant import QdrantVectorStore
 from langchain_huggingface import HuggingFaceEmbeddings
-
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-CHROMA_PATH = os.path.join(BASE_DIR, "chroma_db")
+from qdrant_client import QdrantClient
 
 class RetrievalLayer:
     """
@@ -12,14 +10,17 @@ class RetrievalLayer:
     def __init__(self):
         try:
             self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-            self.vectorstore = Chroma(
-                persist_directory=CHROMA_PATH, 
-                embedding_function=self.embeddings
+            qdrant_url = os.getenv("QDRANT_URL", "http://localhost:6333")
+            self.client = QdrantClient(url=qdrant_url)
+            self.vectorstore = QdrantVectorStore(
+                client=self.client,
+                collection_name="auditagent",
+                embedding=self.embeddings
             )
             self.retriever = self.vectorstore.as_retriever(search_kwargs={"k": 3})
             self.has_db = True
         except Exception as e:
-            print(f"Failed to initialize ChromaDB: {e}")
+            print(f"Failed to initialize Qdrant: {e}")
             self.has_db = False
 
     def query(self, query: str) -> str:

@@ -14,7 +14,8 @@ pip-audit
 sqlalchemy
 rq
 redis
-chromadb
-langchain-chroma
+psycopg2-binary
+qdrant-client
+langchain-qdrant
 langchain-huggingface
 sentence-transformers

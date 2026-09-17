@@ -1,23 +1,18 @@
 import os
 import sys
-from langchain_chroma import Chroma
+from langchain_qdrant import QdrantVectorStore
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.documents import Document
+from qdrant_client import QdrantClient
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CHROMA_PATH = os.path.join(BASE_DIR, "chroma_db")
-
 def seed_database():
-    print("Loading HuggingFace Embeddings (this might take a moment to download weights)...")
+    print("Loading HuggingFace Embeddings...")
     embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
     
-    print(f"Initializing ChromaDB at {CHROMA_PATH}...")
-    vectorstore = Chroma(
-        persist_directory=CHROMA_PATH, 
-        embedding_function=embeddings
-    )
+    qdrant_url = os.getenv("QDRANT_URL", "http://localhost:6333")
+    print(f"Connecting to Qdrant at {qdrant_url}...")
     
     documents = [
         Document(
@@ -42,9 +37,14 @@ def seed_database():
         )
     ]
     
-    print("Adding documents to vector database...")
-    vectorstore.add_documents(documents)
-    print(f"Successfully added {len(documents)} documents to the vector database.")
+    print("Adding documents to Qdrant vector database...")
+    QdrantVectorStore.from_documents(
+        documents,
+        embeddings,
+        url=qdrant_url,
+        collection_name="auditagent",
+    )
+    print(f"Successfully added {len(documents)} documents to Qdrant.")
 
 if __name__ == "__main__":
     seed_database()
