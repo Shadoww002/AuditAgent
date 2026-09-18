@@ -17,7 +17,6 @@ redis
 psycopg2-binary
 qdrant-client
 langchain-qdrant
-langchain-huggingface
-sentence-transformers
+fastembed
 tenacity
 requests

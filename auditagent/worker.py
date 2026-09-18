@@ -2,7 +2,7 @@ import os
 import datetime
 import requests
 from redis import Redis
-from rq import Worker, Queue, Connection
+from rq import Worker, Queue
 from dotenv import load_dotenv
 
 from auditagent.db import SessionLocal
@@ -84,6 +84,5 @@ def execute_scan_job(job_id: str, repo_url: str):
             cleanup_repo(repo_path)
 
 if __name__ == '__main__':
-    with Connection(redis_conn):
-        worker = Worker(['audit_queue'])
-        worker.work()
+    worker = Worker(['audit_queue'], connection=redis_conn)
+    worker.work()

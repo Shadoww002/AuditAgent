@@ -1,6 +1,6 @@
 import os
 from langchain_qdrant import QdrantVectorStore
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
 from qdrant_client import QdrantClient
 
 class RetrievalLayer:
@@ -9,7 +9,7 @@ class RetrievalLayer:
     """
     def __init__(self):
         try:
-            self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+            self.embeddings = FastEmbedEmbeddings()
             qdrant_url = os.getenv("QDRANT_URL", "http://localhost:6333")
             self.client = QdrantClient(url=qdrant_url)
             self.vectorstore = QdrantVectorStore(
@@ -42,3 +42,5 @@ class RetrievalLayer:
             return "\n\n".join(context)
         except Exception as e:
             return f"Error during retrieval: {e}"
+
+retriever = RetrievalLayer()

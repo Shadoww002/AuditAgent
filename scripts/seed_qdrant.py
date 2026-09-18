@@ -1,15 +1,18 @@
 import os
 import sys
 from langchain_qdrant import QdrantVectorStore
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
 from langchain_core.documents import Document
 from qdrant_client import QdrantClient
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 def seed_database():
-    print("Loading HuggingFace Embeddings...")
-    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    print("Initializing Qdrant client...")
+    client = QdrantClient(host="localhost", port=6333)
+    
+    print("Loading FastEmbed Embeddings...")
+    embeddings = FastEmbedEmbeddings()
     
     qdrant_url = os.getenv("QDRANT_URL", "http://localhost:6333")
     print(f"Connecting to Qdrant at {qdrant_url}...")
