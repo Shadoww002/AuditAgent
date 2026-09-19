@@ -13,3 +13,4 @@ class ScanJob(Base):
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
+    api_key = Column(String, index=True, nullable=True)

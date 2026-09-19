@@ -8,14 +8,19 @@ from qdrant_client import QdrantClient
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 def seed_database():
-    print("Initializing Qdrant client...")
-    client = QdrantClient(host="localhost", port=6333)
-    
-    print("Loading FastEmbed Embeddings...")
-    embeddings = FastEmbedEmbeddings()
-    
     qdrant_url = os.getenv("QDRANT_URL", "http://localhost:6333")
     print(f"Connecting to Qdrant at {qdrant_url}...")
+    
+    try:
+        client = QdrantClient(url=qdrant_url)
+        # Force a network call to verify it's reachable
+        client.get_collections()
+    except Exception as e:
+        print(f"FATAL: Qdrant is unreachable at {qdrant_url}. Error: {e}")
+        sys.exit(1)
+        
+    print("Loading FastEmbed Embeddings...")
+    embeddings = FastEmbedEmbeddings()
     
     documents = [
         Document(

@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Security
+from fastapi.security.api_key import APIKeyHeader
 from pydantic import BaseModel
 from typing import Dict, Optional
 import uuid
@@ -13,6 +14,7 @@ load_dotenv() # Load environment variables
 from auditagent.db import SessionLocal, engine, get_db
 from auditagent.models import Base, ScanJob
 from auditagent.worker import execute_scan_job
+from auditagent.utils.repo import is_safe_url
 
 # Create tables if they don't exist
 Base.metadata.create_all(bind=engine)
@@ -25,16 +27,41 @@ redis_conn = Redis(
 )
 q = Queue('audit_queue', connection=redis_conn)
 
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=True)
+
+def get_api_key(api_key: str = Security(api_key_header)):
+    expected_api_key = os.getenv("AUDITAGENT_API_KEY", "default-dev-key")
+    if api_key == expected_api_key:
+        return api_key
+    raise HTTPException(status_code=403, detail="Could not validate credentials")
+
 class ScanRequest(BaseModel):
     repo_url: str
     webhook_url: Optional[str] = None
 
+MAX_CONCURRENT_JOBS = int(os.getenv("MAX_CONCURRENT_JOBS", "5"))
+
 @app.post("/api/v1/scan")
-def trigger_scan(request: ScanRequest, db: Session = Depends(get_db)):
+def trigger_scan(request: ScanRequest, db: Session = Depends(get_db), api_key: str = Depends(get_api_key)):
+    if not is_safe_url(request.repo_url):
+        raise HTTPException(status_code=400, detail="Invalid or unsafe repo_url")
+        
+    if request.webhook_url and not is_safe_url(request.webhook_url):
+        raise HTTPException(status_code=400, detail="Invalid or unsafe webhook_url")
+        
+    # Check concurrent job cap
+    active_jobs = db.query(ScanJob).filter(
+        ScanJob.api_key == api_key,
+        ScanJob.status.in_(["pending", "cloning", "running_agents"])
+    ).count()
+    
+    if active_jobs >= MAX_CONCURRENT_JOBS:
+        raise HTTPException(status_code=429, detail="Too many concurrent jobs running.")
+        
     job_id = str(uuid.uuid4())
     
     # Create job in database
-    new_job = ScanJob(id=job_id, repo_url=request.repo_url, webhook_url=request.webhook_url, status="pending")
+    new_job = ScanJob(id=job_id, repo_url=request.repo_url, webhook_url=request.webhook_url, status="pending", api_key=api_key)
     db.add(new_job)
     db.commit()
     

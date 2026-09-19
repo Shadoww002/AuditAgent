@@ -1,10 +1,18 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Annotated
+import operator
 from pydantic import BaseModel, Field
+
+def reduce_list(left: list | None, right: list | None) -> list:
+    if not left:
+        left = []
+    if not right:
+        right = []
+    return left + right
 
 class RepositoryMetadata(BaseModel):
     path: str
-    language: Optional[str] = None
-    package_manager: Optional[str] = None
+    languages: List[str] = Field(default_factory=list)
+    package_managers: List[str] = Field(default_factory=list)
     framework: Optional[str] = None
 
 class Finding(BaseModel):
@@ -25,11 +33,9 @@ class VerifiedFinding(BaseModel):
     citations: List[str] = Field(default_factory=list)
 
 class AuditState(BaseModel):
-    repository_path: str
+    repository_path: str = ""
     metadata: Optional[RepositoryMetadata] = None
-    findings: List[Finding] = Field(default_factory=list)
-    verified_findings: List[VerifiedFinding] = Field(default_factory=list)
-    final_report: Optional[str] = None
-    errors: List[str] = Field(default_factory=list)
-
-    # For LangGraph state merging (dict representation might be needed depending on graph setup)
+    findings: Annotated[List[Finding], reduce_list] = Field(default_factory=list)
+    verified_findings: Annotated[List[VerifiedFinding], reduce_list] = Field(default_factory=list)
+    final_report: str = ""
+    errors: Annotated[List[str], reduce_list] = Field(default_factory=list)

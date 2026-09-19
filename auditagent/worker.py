@@ -28,13 +28,13 @@ def execute_scan_job(job_id: str, repo_url: str):
         db.close()
         return
 
+    repo_path = None
+    is_remote = repo_url.startswith("http://") or repo_url.startswith("https://") or repo_url.startswith("git@")
+
     try:
         job.status = "cloning"
         db.commit()
-        
-        repo_path = None
-        is_remote = repo_url.startswith("http://") or repo_url.startswith("https://") or repo_url.startswith("git@")
-        
+
         if is_remote:
             repo_path = clone_repo(repo_url)
         else:
@@ -44,19 +44,24 @@ def execute_scan_job(job_id: str, repo_url: str):
         db.commit()
         
         workflow = build_graph()
-        initial_state = {
-            "repository_path": repo_path,
-            "metadata": {},
-            "findings": [],
-            "verified_findings": [],
-            "final_report": "",
-            "errors": []
-        }
+        from auditagent.state import AuditState, RepositoryMetadata
+        initial_state = AuditState(
+            repository_path=repo_path,
+            metadata=None,
+            findings=[],
+            verified_findings=[],
+            final_report="",
+            errors=[]
+        )
         
         final_state = workflow.invoke(initial_state)
         
         job.status = "completed"
-        job.report_text = final_state.get("final_report", "")
+        # LangGraph returns a dict when .invoke() finishes, even for Pydantic states. Let's handle both.
+        if isinstance(final_state, dict):
+            job.report_text = final_state.get("final_report", "")
+        else:
+            job.report_text = final_state.final_report
         job.completed_at = datetime.datetime.utcnow()
         db.commit()
         

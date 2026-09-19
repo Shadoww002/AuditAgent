@@ -11,28 +11,11 @@ from auditagent.agents.workers.secrets import secrets_agent_node
 from auditagent.agents.critic import critic_agent_node
 from auditagent.agents.writer import writer_agent_node
 
-# To merge lists properly in LangGraph state, we need to define a reducer
-def reduce_list(left: list | None, right: list | None) -> list:
-    if not left:
-        left = []
-    if not right:
-        right = []
-    return left + right
-
-# Create a TypedDict version of AuditState for LangGraph to handle updates easily
-class GraphState(TypedDict):
-    repository_path: str
-    metadata: dict
-    findings: Annotated[list, reduce_list]
-    verified_findings: Annotated[list, reduce_list]
-    final_report: str
-    errors: Annotated[list, reduce_list]
-
 def build_graph() -> StateGraph:
     """
     Builds the LangGraph directed graph for the AuditAgent workflow.
     """
-    workflow = StateGraph(GraphState)
+    workflow = StateGraph(AuditState)
     
     # Add nodes
     workflow.add_node("planner", planner_node)

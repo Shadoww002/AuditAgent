@@ -1,23 +1,25 @@
 from typing import Dict, Any
 from auditagent.state import AuditState
 
-def writer_agent_node(state: dict) -> Dict[str, Any]:
+def writer_agent_node(state: AuditState) -> Dict[str, Any]:
     """
     Takes the verified findings and generates a markdown report.
     """
-    metadata = state.get("metadata", {})
+    metadata = state.metadata
+    langs = ", ".join(metadata.languages) if metadata and metadata.languages else "Unknown"
+    
     report_lines = [
         "# AuditAgent Security & Compliance Report",
         "",
-        f"**Repository:** `{state.get('repository_path', '')}`",
-        f"**Language:** `{metadata.get('language') if isinstance(metadata, dict) else metadata.language if metadata else 'Unknown'}`",
+        f"**Repository:** `{state.repository_path}`",
+        f"**Language:** `{langs}`",
         "---",
         "## Verified Findings",
         ""
     ]
     
     verified_count = 0
-    for vf in state.get("verified_findings", []):
+    for vf in state.verified_findings:
         if vf.status == "verified":
             verified_count += 1
             f = vf.original_finding
@@ -36,7 +38,7 @@ def writer_agent_node(state: dict) -> Dict[str, Any]:
     report_lines.append("The following items could not be automatically verified by the Critic agent:\n")
     
     manual_count = 0
-    for vf in state.get("verified_findings", []):
+    for vf in state.verified_findings:
         if vf.status == "needs_manual_review":
             manual_count += 1
             f = vf.original_finding
